@@ -130,7 +130,7 @@ Entries are grouped by transaction ID:
 - Transaction ID (32 bytes, reversed)
 - Output count (CompactSize)
 - For each output:
-  - Vout index (VarInt)
+  - Vout index (CompactSize)
   - Height and coinbase flag (VarInt, height << 1 | coinbase)
   - Compressed amount (VarInt)
   - Compressed scriptPubKey
