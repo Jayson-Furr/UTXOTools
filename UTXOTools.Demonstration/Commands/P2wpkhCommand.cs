@@ -1,0 +1,211 @@
+using UTXOTools.TXOutset.IO;
+
+namespace UTXOTools.Demonstration.Commands;
+
+/// <summary>
+/// Command to locate all P2WPKH scriptPubKeys and export them to a binary file.
+/// </summary>
+internal static class P2wpkhCommand
+{
+    /// <summary>
+    /// Binary file format:
+    /// - Header (9 bytes):
+    ///   - 4 bytes: Magic "WPKH" (0x57 0x50 0x4B 0x48)
+    ///   - 4 bytes: Entry count (uint32, little-endian)
+    ///   - 1 byte: Flags (0x01 = includes amount)
+    /// - For each entry:
+    ///   - [Optional] 8 bytes: Amount in satoshis (uint64, little-endian) if --include-amount
+    ///   - 20 bytes: Witness public key hash (HASH160)
+    /// </summary>
+    public static int Execute(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("Usage: UTXOTools.Demonstration p2wpkh <input-file> <output-file> [--include-amount] [--verbose]");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Options:");
+            Console.Error.WriteLine("  --include-amount    Include amount (8 bytes) before each witness public key hash");
+            Console.Error.WriteLine("  --verbose           Show detailed progress");
+            return 1;
+        }
+
+        string inputPath = args[0];
+        string outputPath = args[1];
+        bool includeAmount = args.Contains("--include-amount");
+        bool verbose = args.Contains("--verbose");
+
+        if (!File.Exists(inputPath))
+        {
+            Console.Error.WriteLine($"Error: Input file not found: {inputPath}");
+            return 1;
+        }
+
+        Console.WriteLine($"Scanning for P2WPKH scripts in {inputPath}...");
+        Console.WriteLine();
+
+        using var reader = new UtxoFileReader(inputPath);
+        var header = reader.ReadHeader();
+
+        Console.WriteLine($"Network:    {header.Network}");
+        Console.WriteLine($"Block Hash: {header.GetBlockHashHex()}");
+        Console.WriteLine($"UTXOs:      {header.UtxoCount:N0}");
+        Console.WriteLine();
+
+        // Collect P2WPKH entries
+        var p2wpkhEntries = new List<P2wpkhEntry>();
+        ulong transactionCount = 0;
+        ulong entryCount = 0;
+
+        foreach (var tx in reader.ReadTransactions())
+        {
+            transactionCount++;
+
+            foreach (var output in tx.Outputs)
+            {
+                entryCount++;
+
+                if (TryExtractP2wpkhHash(output.ScriptPubKey, out byte[]? witnessPubKeyHash))
+                {
+                    p2wpkhEntries.Add(new P2wpkhEntry
+                    {
+                        WitnessPubKeyHash = witnessPubKeyHash!,
+                        Amount = output.Amount,
+                        TxId = tx.TxId,
+                        Vout = output.Vout,
+                        Height = output.Height
+                    });
+
+                    if (verbose && p2wpkhEntries.Count <= 10)
+                    {
+                        Console.WriteLine($"  Found P2WPKH: {tx.GetTxIdHex()}:{output.Vout} - {output.Amount:N0} sats");
+                    }
+                }
+            }
+
+            if (transactionCount % 100000 == 0)
+            {
+                Console.Write($"\rScanning... {entryCount:N0} UTXOs, found {p2wpkhEntries.Count:N0} P2WPKH");
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine($"=== P2WPKH Scan Results ===");
+        Console.WriteLine($"Total UTXOs scanned:  {entryCount:N0}");
+        Console.WriteLine($"P2WPKH entries found: {p2wpkhEntries.Count:N0}");
+        Console.WriteLine();
+
+        if (p2wpkhEntries.Count == 0)
+        {
+            Console.WriteLine("No P2WPKH entries found. Output file not created.");
+            return 0;
+        }
+
+        // Write binary output
+        Console.WriteLine($"Writing to {outputPath}...");
+        WriteBinaryOutput(outputPath, p2wpkhEntries, includeAmount);
+
+        var fileInfo = new FileInfo(outputPath);
+        Console.WriteLine($"Output file size: {FormatFileSize(fileInfo.Length)}");
+        Console.WriteLine("Export complete.");
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Tries to extract the witness public key hash from a P2WPKH scriptPubKey.
+    /// </summary>
+    /// <param name="script">The scriptPubKey bytes.</param>
+    /// <param name="witnessPubKeyHash">The extracted 20-byte witness public key hash (HASH160).</param>
+    /// <returns>True if the script is P2WPKH and the hash was extracted.</returns>
+    /// <remarks>
+    /// P2WPKH script format (22 bytes):
+    /// OP_0 (0x00) 0x14 (20 bytes) &lt;20-byte HASH160 hash&gt;
+    /// </remarks>
+    private static bool TryExtractP2wpkhHash(byte[] script, out byte[]? witnessPubKeyHash)
+    {
+        witnessPubKeyHash = null;
+
+        // P2WPKH: 0x00 0x14 <20 bytes hash>
+        // Length: 1 + 1 + 20 = 22 bytes
+        if (script.Length == 22 &&
+            script[0] == 0x00 &&   // OP_0 (witness version 0)
+            script[1] == 0x14)     // Push 20 bytes
+        {
+            witnessPubKeyHash = script[2..22];
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Writes the P2WPKH entries to a binary file.
+    /// </summary>
+    /// <remarks>
+    /// Binary format:
+    /// - Header (9 bytes):
+    ///   - 4 bytes: Magic "WPKH" (0x57 0x50 0x4B 0x48)
+    ///   - 4 bytes: Entry count (uint32, little-endian)
+    ///   - 1 byte: Flags (0x01 = includes amount)
+    /// - For each entry:
+    ///   - [Optional] 8 bytes: Amount in satoshis (uint64, little-endian) if --include-amount
+    ///   - 20 bytes: Witness public key hash
+    /// </remarks>
+    private static void WriteBinaryOutput(string outputPath, List<P2wpkhEntry> entries, bool includeAmount)
+    {
+        using var stream = File.Create(outputPath);
+        using var writer = new BinaryWriter(stream);
+
+        // Write magic bytes "WPKH"
+        writer.Write((byte)'W');
+        writer.Write((byte)'P');
+        writer.Write((byte)'K');
+        writer.Write((byte)'H');
+
+        // Write entry count
+        writer.Write((uint)entries.Count);
+
+        // Write flags byte (for future extensibility)
+        byte flags = 0;
+        if (includeAmount) flags |= 0x01;
+        writer.Write(flags);
+
+        // Write each entry
+        foreach (var entry in entries)
+        {
+            if (includeAmount)
+            {
+                writer.Write(entry.Amount);
+            }
+
+            // P2WPKH hash is always 20 bytes, no need to write length
+            writer.Write(entry.WitnessPubKeyHash);
+        }
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = ["B", "KB", "MB", "GB"];
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    /// <summary>
+    /// Represents a P2WPKH entry with its witness public key hash and metadata.
+    /// </summary>
+    private sealed class P2wpkhEntry
+    {
+        public required byte[] WitnessPubKeyHash { get; init; }
+        public required ulong Amount { get; init; }
+        public required byte[] TxId { get; init; }
+        public required ulong Vout { get; init; }
+        public required uint Height { get; init; }
+    }
+}

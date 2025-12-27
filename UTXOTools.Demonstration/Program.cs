@@ -24,6 +24,14 @@ internal class Program
                 "validate" => ValidateCommand.Execute(args[1..]),
                 "stats" => StatsCommand.Execute(args[1..]),
                 "p2pk" => P2pkCommand.Execute(args[1..]),
+                "p2pkh" => P2pkhCommand.Execute(args[1..]),
+                "p2ms" => P2msCommand.Execute(args[1..]),
+                "p2sh" => P2shCommand.Execute(args[1..]),
+                "p2sh-p2wpkh" => P2shP2wpkhCommand.Execute(args[1..]),
+                "p2sh-p2wsh" => P2shP2wshCommand.Execute(args[1..]),
+                "p2wpkh" => P2wpkhCommand.Execute(args[1..]),
+                "p2wsh" => P2wshCommand.Execute(args[1..]),
+                "p2tr" => P2trCommand.Execute(args[1..]),
                 "help" or "--help" or "-h" => ShowHelp(),
                 "version" or "--version" or "-v" => ShowVersion(),
                 _ => UnknownCommand(command)
@@ -59,6 +67,14 @@ internal class Program
               validate <file>          Validate a UTXO file
               stats <file>             Show statistics about the UTXO set
               p2pk <file> <output>     Extract P2PK public keys to binary file
+              p2pkh <file> <output>    Extract P2PKH public key hashes to binary file
+              p2ms <file> <output>     Extract P2MS (bare multisig) data to binary file
+              p2sh <file> <output>     Extract P2SH script hashes to binary file
+              p2sh-p2wpkh <file> <output>  Extract P2SH script hashes (potential P2SH-P2WPKH)
+              p2sh-p2wsh <file> <output>   Extract P2SH script hashes (potential P2SH-P2WSH)
+              p2wpkh <file> <output>   Extract P2WPKH witness public key hashes to binary file
+              p2wsh <file> <output>    Extract P2WSH witness script hashes to binary file
+              p2tr <file> <output>     Extract P2TR taproot output keys to binary file
               help                     Show this help message
               version                  Show version information
 
@@ -77,6 +93,40 @@ internal class Program
               --include-amount         Include satoshi amount for each public key
               --verbose                Show detailed progress
 
+            Options for 'p2pkh':
+              --include-amount         Include satoshi amount for each public key hash
+              --verbose                Show detailed progress
+
+            Options for 'p2ms':
+              --include-amount         Include satoshi amount for each multisig entry
+              --verbose                Show detailed progress
+
+            Options for 'p2sh':
+              --include-amount         Include satoshi amount for each script hash
+              --verbose                Show detailed progress
+
+            Options for 'p2sh-p2wpkh':
+              --include-amount         Include satoshi amount for each script hash
+              --verbose                Show detailed progress
+              Note: P2SH-P2WPKH cannot be distinguished from P2SH at scriptPubKey level
+
+            Options for 'p2sh-p2wsh':
+              --include-amount         Include satoshi amount for each script hash
+              --verbose                Show detailed progress
+              Note: P2SH-P2WSH cannot be distinguished from P2SH at scriptPubKey level
+
+            Options for 'p2wpkh':
+              --include-amount         Include satoshi amount for each witness public key hash
+              --verbose                Show detailed progress
+
+            Options for 'p2wsh':
+              --include-amount         Include satoshi amount for each witness script hash
+              --verbose                Show detailed progress
+
+            Options for 'p2tr':
+              --include-amount         Include satoshi amount for each taproot output key
+              --verbose                Show detailed progress
+
             Examples:
               UTXOTools.Demonstration info utxo.dat
               UTXOTools.Demonstration list utxo.dat --limit 100
@@ -84,6 +134,14 @@ internal class Program
               UTXOTools.Demonstration validate utxo.dat
               UTXOTools.Demonstration export utxo.dat output.json --format json
               UTXOTools.Demonstration p2pk utxo.dat p2pk_keys.bin
+              UTXOTools.Demonstration p2pkh utxo.dat p2pkh_hashes.bin
+              UTXOTools.Demonstration p2ms utxo.dat p2ms_multisig.bin
+              UTXOTools.Demonstration p2sh utxo.dat p2sh_hashes.bin
+              UTXOTools.Demonstration p2sh-p2wpkh utxo.dat p2sh_p2wpkh_hashes.bin
+              UTXOTools.Demonstration p2sh-p2wsh utxo.dat p2sh_p2wsh_hashes.bin
+              UTXOTools.Demonstration p2wpkh utxo.dat p2wpkh_hashes.bin
+              UTXOTools.Demonstration p2wsh utxo.dat p2wsh_hashes.bin
+              UTXOTools.Demonstration p2tr utxo.dat p2tr_keys.bin
             """);
         return 0;
     }
