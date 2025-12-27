@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UTXOTools.Demonstration": {
+      "commandName": "Project",
+      "commandLineArgs": "stats C:\\BitcoinData\\utxo30.dat"
+    }
+  }
+}

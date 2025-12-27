@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="UTXOTools.Demonstration/UTXOTools.Demonstration.csproj" />
+  <Project Path="UTXOTools.TXOutset/UTXOTools.TXOutset.csproj" />
+</Solution>
